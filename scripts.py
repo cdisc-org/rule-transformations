@@ -1,4 +1,4 @@
-from json import dumps
+import json
 from os import getenv
 from typing import Callable
 from yaml import Dumper, dump, parser, safe_load, scanner
@@ -11,12 +11,37 @@ class IndentedListDumper(Dumper):
         return super().increase_indent(flow=flow, indentless=False)
 
 
+def export_json(token: str, path: str) -> list:
+    API_BASE_URL = getenv("API_BASE_URL", None)
+    rule_ids = get_rule_ids(token)
+    rules = []
+    for rule_id in rule_ids:
+        rule_json = get(
+            f"https://{API_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
+            headers={
+                "Authorization": "Bearer " + token,
+                "Accept": "application/vnd.api+json",
+                "Content-Type": "application/vnd.api+json",
+            },
+            verify=False,
+        ).json()
+        try:
+            body = rule_json["data"]["attributes"]["body"]["value"]
+            rule_yaml = safe_load(body)
+            rules.append(rule_yaml)
+        except (parser.ParserError, scanner.ScannerError, TypeError) as err:
+            print(f"Rule ID: {rule_id} Error: {err}")
+    with open(path, "w") as file:
+        json.dump({"rules": rules}, file, ensure_ascii=False, indent=4, sort_keys=True)
+    return rules
+
+
 def get_rule_ids(token: str) -> list[str]:
     API_BASE_URL = getenv("API_BASE_URL", None)
     pagination = f"https://{API_BASE_URL}/jsonapi/node/conformance_rule?sort=id"
     rule_ids = []
     while pagination:
-        json = get(
+        rule_json = get(
             pagination,
             headers={
                 "Authorization": "Bearer " + token,
@@ -25,8 +50,8 @@ def get_rule_ids(token: str) -> list[str]:
             },
             verify=False,
         ).json()
-        pagination = json["links"].get("next", {}).get("href")
-        rule_ids += [rule["id"] for rule in json["data"]]
+        pagination = rule_json["links"].get("next", {}).get("href")
+        rule_ids += [rule["id"] for rule in rule_json["data"]]
     return rule_ids
 
 
@@ -36,14 +61,14 @@ def set_attribute(
     API_BASE_URL = getenv("API_BASE_URL", None)
     responses = []
     for rule_id in rule_ids:
-        json = patch(
+        rule_json = patch(
             f"https://{API_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
             headers={
                 "Authorization": "Bearer " + token,
                 "Accept": "application/vnd.api+json",
                 "Content-Type": "application/vnd.api+json",
             },
-            data=dumps(
+            data=json.dumps(
                 {
                     "data": {
                         "id": rule_id,
@@ -56,7 +81,7 @@ def set_attribute(
             ),
             verify=False,
         ).json()
-        responses += [json]
+        responses += [rule_json]
     return responses
 
 
@@ -68,7 +93,7 @@ def transform_yaml(
     API_BASE_URL = getenv("API_BASE_URL", None)
     responses = []
     for rule_id in rule_ids:
-        json = get(
+        rule_json = get(
             f"https://{API_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
             headers={
                 "Authorization": "Bearer " + token,
@@ -78,18 +103,18 @@ def transform_yaml(
             verify=False,
         ).json()
         try:
-            body = json["data"]["attributes"]["body"]["value"]
+            body = rule_json["data"]["attributes"]["body"]["value"]
             rule_yaml = safe_load(body)
             for transformation in transformations:
                 transformation(rule_yaml)
-            json = patch(
+            rule_json = patch(
                 f"https://{API_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
                 headers={
                     "Authorization": "Bearer " + token,
                     "Accept": "application/vnd.api+json",
                     "Content-Type": "application/vnd.api+json",
                 },
-                data=dumps(
+                data=json.dumps(
                     {
                         "data": {
                             "id": rule_id,
@@ -107,7 +132,7 @@ def transform_yaml(
                 ),
                 verify=False,
             ).json()
-            responses += [json]
+            responses += [rule_json]
         except (parser.ParserError, scanner.ScannerError, TypeError) as err:
             responses += [err]
     return responses
