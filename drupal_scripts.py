@@ -40,11 +40,11 @@ def spaces_to_underscores(data):
     return data
 
 
-def export_json(token: str, path: str) -> list:
+def export_json(token: str, path: str, max_rules=None) -> list:
     DRUPAL_BASE_URL = getenv("DRUPAL_BASE_URL")
     rule_ids = get_rule_ids(token)
     rules = []
-    for rule_id in rule_ids:
+    for rule_id in rule_ids[:max_rules]:
         rule_json = get(
             f"https://{DRUPAL_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
             headers=get_headers(token),
@@ -53,19 +53,23 @@ def export_json(token: str, path: str) -> list:
         try:
             body = rule_json["data"]["attributes"]["body"]["value"]
         except (parser.ParserError, scanner.ScannerError, TypeError) as err:
-            print(f"Rule ID: {rule_id} Error: {err}")
+            print(f"Rule ID:\n{rule_id}\nDrupal Error:\n{err}\n")
             body = ""
         try:
             rule_yaml = safe_load(body)
         except (parser.ParserError, scanner.ScannerError, TypeError) as err:
-            print(f"Rule ID: {rule_id} Error: {err}")
+            print(f"Rule ID:\n{rule_id}\nYAML Parse Error:\n{err}\n")
             rule_yaml = {}
         rules.append(
             {
                 "id": rule_json["data"]["id"],
-                "changed": rule_json["data"]["attributes"]["changed"],
+                "changed": rule_json["data"]["attributes"]["changed"].replace(
+                    "+00:00", "Z"
+                ),
                 "content": body,
-                "created": rule_json["data"]["attributes"]["created"],
+                "created": rule_json["data"]["attributes"]["created"].replace(
+                    "+00:00", "Z"
+                ),
                 "creator": rule_json["data"]["attributes"][
                     "field_conformance_rule_creator"
                 ],
