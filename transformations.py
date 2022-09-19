@@ -18,3 +18,8 @@ def standardize_reference_origin(yaml: dict) -> None:
     for reference in yaml.get("References", []):
         if reference.get("Origin") == "SDTM Conformance Rules":
             reference["Origin"] = "SDTM and SDTMIG Conformance Rules"
+
+
+def add_json_property(yaml: dict) -> None:
+    if "json" not in yaml:
+        yaml["json"] = {}
