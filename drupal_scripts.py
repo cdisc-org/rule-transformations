@@ -41,12 +41,12 @@ def spaces_to_underscores(data):
 
 
 def export_json(token: str, path: str, max_rules=None) -> list:
-    DRUPAL_BASE_URL = getenv("DRUPAL_BASE_URL")
+    B2C_BASE_URL = getenv("B2C_BASE_URL")
     rule_ids = get_rule_ids(token)
     rules = []
     for rule_id in rule_ids[:max_rules]:
         rule_json = get(
-            f"https://{DRUPAL_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
+            f"https://{B2C_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
             headers=get_headers(token),
             verify=False,
         ).json()
@@ -83,8 +83,8 @@ def export_json(token: str, path: str, max_rules=None) -> list:
 
 
 def get_rule_ids(token: str) -> list[str]:
-    DRUPAL_BASE_URL = getenv("DRUPAL_BASE_URL")
-    pagination = f"https://{DRUPAL_BASE_URL}/jsonapi/node/conformance_rule?sort=id"
+    B2C_BASE_URL = getenv("B2C_BASE_URL")
+    pagination = f"https://{B2C_BASE_URL}/jsonapi/node/conformance_rule?sort=id"
     rule_ids = []
     while pagination:
         rule_json = get(
@@ -100,11 +100,11 @@ def get_rule_ids(token: str) -> list[str]:
 def set_attribute(
     token: str, rule_ids: list[str], attribute_name: str, attribute_value: any
 ) -> list:
-    DRUPAL_BASE_URL = getenv("DRUPAL_BASE_URL")
+    B2C_BASE_URL = getenv("B2C_BASE_URL")
     responses = []
     for rule_id in rule_ids:
         rule_json = patch(
-            f"https://{DRUPAL_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
+            f"https://{B2C_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
             headers=get_headers(token),
             data=json.dumps(
                 {
@@ -128,11 +128,11 @@ def transform_yaml(
     rule_ids: list[str],
     transformations: list[Callable[[dict], None]],
 ) -> list:
-    DRUPAL_BASE_URL = getenv("DRUPAL_BASE_URL")
+    B2C_BASE_URL = getenv("B2C_BASE_URL")
     responses = []
     for rule_id in rule_ids:
         rule_json = get(
-            f"https://{DRUPAL_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
+            f"https://{B2C_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
             headers=get_headers(token),
             verify=False,
         ).json()
@@ -142,7 +142,7 @@ def transform_yaml(
             for transformation in transformations:
                 transformation(rule_yaml)
             rule_json = patch(
-                f"https://{DRUPAL_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
+                f"https://{B2C_BASE_URL}/jsonapi/node/conformance_rule/{rule_id}",
                 headers={
                     "Authorization": "Bearer " + token,
                     "Accept": "application/vnd.api+json",
