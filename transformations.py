@@ -1,3 +1,6 @@
+from users import get_user_id_from_name
+
+
 def move_check_to_root(yaml: dict) -> None:
     rule_type = yaml.get("Rule Type")
     if isinstance(rule_type, dict) and len(rule_type) == 1:
@@ -20,6 +23,10 @@ def standardize_reference_origin(yaml: dict) -> None:
             reference["Origin"] = "SDTM and SDTMIG Conformance Rules"
 
 
-def add_json_property(yaml: dict) -> None:
-    if "json" not in yaml:
-        yaml["json"] = {}
+def add_json_property(rule: dict) -> None:
+    if "json" not in rule:
+        rule["json"] = {}
+
+
+def convert_creators(rule: dict) -> None:
+    rule["creator"] = {"id": get_user_id_from_name(rule["creator"])["id"]}

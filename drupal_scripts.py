@@ -123,7 +123,7 @@ def set_attribute(
     return responses
 
 
-def transform_yaml(
+def transform_rule(
     token: str,
     rule_ids: list[str],
     transformations: list[Callable[[dict], None]],
