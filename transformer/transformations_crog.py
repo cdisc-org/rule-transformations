@@ -1,38 +1,5 @@
-from users import get_user_id_from_name
-from cosmosdb_scripts import CosmosdbTransformer
+from .transformer import Transformer
 from copy import deepcopy
-
-
-def move_check_to_root(yaml: dict) -> None:
-    rule_type = yaml.get("Rule Type")
-    if isinstance(rule_type, dict) and len(rule_type) == 1:
-        yaml["Check"] = list(rule_type.values())[0]["Check"]
-        yaml["Rule Type"] = list(rule_type.keys())[0]
-
-
-def convert_reference_to_references(yaml: dict) -> None:
-    if "Reference" in yaml and "References" not in yaml:
-        if "Id" in yaml["Reference"] and "Rule Identifier" not in yaml["Reference"]:
-            yaml["Reference"]["Rule Identifier"] = {"Id": yaml["Reference"].pop("Id")}
-        yaml["References"] = [yaml.pop("Reference")]
-
-
-def standardize_reference_origin(yaml: dict) -> None:
-    for reference in yaml.get("References", []):
-        if reference.get("Origin") == "SDTM Conformance Rules":
-            reference["Origin"] = "SDTM and SDTMIG Conformance Rules"
-
-
-def add_json_property(rule: dict) -> None:
-    if "json" not in rule:
-        rule["json"] = {}
-
-
-def convert_creators(rule: dict) -> None:
-    rule["creator"] = {"id": get_user_id_from_name(rule["creator"])["id"]}
-
-
-# CROG transformations
 
 
 def _standardize_classes(classes: list[str]) -> None:
@@ -40,9 +7,7 @@ def _standardize_classes(classes: list[str]) -> None:
         classes[i] = item.upper()
 
 
-def standardize_classes(
-    yaml: dict, rule: dict, transformer: CosmosdbTransformer
-) -> None:
+def standardize_classes(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Use standard terminology (https://library.cdisc.org/browser/#/mdr/ct/2022-09-30/packages/define-xmlct-2022-09-30/codelists/C103329). For the current classes, this just means they will need to be converted to all-caps.
     `Scopes.Classes.Include`
     `Scopes.Classes.Exclude`
@@ -63,9 +28,7 @@ def _capitalize_datasets_all_list(datasets: list[str]):
             datasets[i] = "ALL"
 
 
-def capitalize_datasets_all(
-    yaml: dict, rule: dict, transformer: CosmosdbTransformer
-) -> None:
+def capitalize_datasets_all(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Change "All" keyword to "ALL"
     `Match Datasets.Name`
     `Operations.domain`
@@ -94,7 +57,7 @@ def _multi_and_unequal(l1: list, l2: list):
     return len(l1) > 1 and len(l2) > 1 and len(l1) != len(l2)
 
 
-def move_citations(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def move_citations(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Move to be a property of `Authority.Standards.References` items
     `Citations`
     """
@@ -112,7 +75,7 @@ def move_citations(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> 
         references[0]["Citations"] = citations
     elif len(citations) > 1 and len(references) <= 1:
         yaml["References"] = [
-            {**deepcopy(references.get(0, {})), "Citations": [citation]}
+            {**deepcopy(next(iter(references), {})), "Citations": [citation]}
             for citation in citations
         ]
     elif len(citations) > 1 and len(references) > 1:
@@ -120,17 +83,13 @@ def move_citations(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> 
             reference["Citations"] = citation
 
 
-def move_references(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def move_references(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Move to be a property of `Authority.Standards` items
     `References`
     """
     standards = yaml.get("Scopes", {}).get("Standards", [])
     references = yaml.pop("References", [])
-    if _multi_and_unequal(standards, references):
-        raise Exception(
-            f"Standards and References counts don't match for: {rule['id']}"
-        )
-    elif not references:
+    if not references:
         return
     elif len(references) == 1 and len(standards) == 0:
         yaml["Scopes"] = {
@@ -138,23 +97,28 @@ def move_references(yaml: dict, rule: dict, transformer: CosmosdbTransformer) ->
             "Standards": [{"References": references}],
         }
     elif len(references) == 1 and len(standards) > 0:
-        standards[0]["References"] = references
+        for standard in standards:
+            standard["References"] = deepcopy(references)
     elif len(references) > 1 and len(standards) <= 1:
         yaml["Scopes"] = {
             **yaml.get("Scopes", {}),
             "Standards": [
-                {**deepcopy(standards.get(0, {})), "References": [reference]}
+                {**deepcopy(next(iter(standards), {})), "References": [reference]}
                 for reference in references
             ],
         }
-    elif len(references) > 1 and len(standards) > 1:
+    elif (
+        len(references) > 1 and len(standards) > 1 and len(standards) >= len(references)
+    ):
         for standard, reference in zip(standards, references):
-            standard["References"] = reference
+            standard["References"] = [reference]
+    else:
+        raise Exception(
+            f"Standards and References counts don't match for: {rule['id']}"
+        )
 
 
-def convert_authority_to_list(
-    yaml: dict, rule: dict, transformer: CosmosdbTransformer
-) -> None:
+def convert_authority_to_list(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Convert value from object to list of objects
     `Authority`
     """
@@ -163,19 +127,22 @@ def convert_authority_to_list(
         yaml["Authority"] = [authority]
 
 
-def move_standards(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def move_standards(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Move to be a property of `Authority` items
     `Scopes.Standards`
     """
     standards = yaml.get("Scopes", {}).pop("Standards", None)
     if standards is not None:
-        yaml["Authority"] = {
-            **next(iter(yaml.get("Authority", [])), {}),
-            "Standards": standards,
-        }
+        yaml["Authority"] = [
+            {
+                **next(iter(yaml.get("Authority", [])), {}),
+                "Standards": standards,
+            },
+            *yaml.get("Authority", [])[1:],
+        ]
 
 
-def rename_scope(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def rename_scope(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Rename to `Scope`
     `Scopes`
     """
@@ -183,9 +150,7 @@ def rename_scope(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> No
         yaml["Scope"] = yaml.pop("Scopes")
 
 
-def condense_rule_types(
-    yaml: dict, rule: dict, transformer: CosmosdbTransformer
-) -> None:
+def condense_rule_types(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Replace the following Rule Types with new Rule Type `Record Data`:
     - `Consistency`
     - `Data Domain Aggregation`
@@ -223,14 +188,14 @@ def condense_rule_types(
         yaml["Rule Type"] = "Record Data"
 
 
-def remove_severity(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def remove_severity(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """`Severity` is removed from the root and is now an optional property under `Authority.Standards.References` for some authorities, like PMDA.
     `Severity`
     """
     yaml.pop("Severity", None)
 
 
-def add_executability(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def add_executability(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """Added with following options:
     - `Fully Executable`
     - `Partially Executable - Possible Overreporting`
@@ -240,7 +205,7 @@ def add_executability(yaml: dict, rule: dict, transformer: CosmosdbTransformer) 
     pass  # No transformation required
 
 
-def add_status(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def add_status(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """
     Added with following options:
     - `Draft`
@@ -255,7 +220,7 @@ def add_status(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None
         }
 
 
-def convert_rule_id(yaml: dict, rule: dict, transformer: CosmosdbTransformer) -> None:
+def convert_rule_id(yaml: dict, rule: dict, transformer: Transformer) -> None:
     """
     Core id pattern is changing
     - from: `CDISC.<STANDARD NAME>.<ORIGINAL ID>` aka `CDISC.SDTMIG.CG0001`
@@ -266,3 +231,20 @@ def convert_rule_id(yaml: dict, rule: dict, transformer: CosmosdbTransformer) ->
         **yaml.get("Core", {}),
         "Id": transformer.next_core_id(),
     }
+
+
+def all_transformations():
+    return [
+        standardize_classes,
+        capitalize_datasets_all,
+        move_citations,
+        move_references,
+        convert_authority_to_list,
+        move_standards,
+        rename_scope,
+        condense_rule_types,
+        remove_severity,
+        add_executability,
+        add_status,
+        convert_rule_id,
+    ]
