@@ -227,10 +227,11 @@ def convert_rule_id(yaml: dict, rule: dict, transformer: Transformer) -> None:
     - to: a universal id like `CORE-000001`
     `Core.Id`
     """
-    yaml["Core"] = {
-        **yaml.get("Core", {}),
-        "Id": transformer.next_core_id(),
-    }
+    if yaml["Core"]["Status"] == "Published":
+        yaml["Core"] = {
+            **yaml.get("Core", {}),
+            "Id": transformer.next_core_id(),
+        }
 
 
 def all_transformations():
