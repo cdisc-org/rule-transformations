@@ -1,9 +1,9 @@
 from json import dump as dump_json
 from typing import Callable
 from ruamel.yaml import YAML, parser, scanner
+from yaml import safe_load
 from .each_deep import each_deep
 from io import StringIO
-from copy import deepcopy
 from abc import ABC, abstractmethod
 
 
@@ -60,13 +60,13 @@ class Transformer(ABC):
             yaml = yaml_loader.load(rule["content"]) or {}
             for transformation in transformations:
                 transformation(yaml, rule, self)
-            rule["json"] = Transformer.spaces_to_underscores(deepcopy(yaml))
             content = StringIO()
             yaml_loader.dump(
                 yaml,
                 content,
             )
             rule["content"] = content.getvalue()
+            rule["json"] = Transformer.spaces_to_underscores(safe_load(rule["content"]))
             content.close()
         except (scanner.ScannerError, parser.ParserError):
             yaml = {}

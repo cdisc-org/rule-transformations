@@ -1,3 +1,6 @@
+from collections.abc import Iterable
+
+
 def _each_deep(
     context,
     before=lambda c, p, ip: None,
@@ -16,7 +19,7 @@ def _each_deep(
                 path=path + "/" + str(key),
                 indexed_path=indexed_path + "/" + str(key),
             )
-    elif type(node) == list:
+    elif isinstance(node, Iterable) and not type(node) == str:
         for key, value in enumerate(node):
             _each_deep(
                 context=context + [value],

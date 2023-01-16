@@ -1,5 +1,6 @@
 from .transformer import Transformer
 from copy import deepcopy
+from re import fullmatch
 
 
 def _standardize_classes(classes: list[str]) -> None:
@@ -227,7 +228,9 @@ def convert_rule_id(yaml: dict, rule: dict, transformer: Transformer) -> None:
     - to: a universal id like `CORE-000001`
     `Core.Id`
     """
-    if yaml["Core"]["Status"] == "Published":
+    if yaml.get("Core", {}).get("Status", "") == "Published" and not fullmatch(
+        r"CORE-\d{6}", yaml.get("Core", {}).get("Id", "")
+    ):
         yaml["Core"] = {
             **yaml.get("Core", {}),
             "Id": transformer.next_core_id(),
