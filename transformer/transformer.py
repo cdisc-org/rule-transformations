@@ -45,6 +45,10 @@ class Transformer(ABC):
     def spaces_to_underscores(json):
         return each_deep(node=json, after=Transformer._spaces_to_underscores)
 
+    @staticmethod
+    def core_id(rule):
+        return ((rule.get("json", {}) or {}).get("Core", {}) or {}).get("Id", "") or ""
+
     def export_json(self, path: str, max_rules=None):
         rules = self.get_rules(max_rules)
         with open(path, "w") as file:

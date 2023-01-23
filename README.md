@@ -21,17 +21,17 @@ prod_transformer = CosmosdbTransformer(
 )
 ```
 
-### File Transformer
+### JSON File Transformer
 
 ```python
-from transformer.transformer_file import FileTransformer
-file_transformer = FileTransformer(f"{getenv('WORKING_DIR')}/rules.json")
+from transformer.transformer_json import JSONTransformer
+json_transformer = JSONTransformer(f"{getenv('WORKING_DIR')}/rules")
 ```
 
 ## Export Rules
 
 ```python
-prod_transformer.export_json(f"{getenv('WORKING_DIR')}/rules.json")
+prod_transformer.export_json(f"{getenv('WORKING_DIR')}/rules")
 ```
 
 ## Delete and replace rules from one transformer location to another
