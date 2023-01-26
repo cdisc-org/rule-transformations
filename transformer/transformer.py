@@ -1,4 +1,3 @@
-from json import dump as dump_json
 from typing import Callable
 from ruamel.yaml import YAML, parser, scanner
 from yaml import safe_load
@@ -48,14 +47,6 @@ class Transformer(ABC):
     @staticmethod
     def core_id(rule):
         return ((rule.get("json", {}) or {}).get("Core", {}) or {}).get("Id", "") or ""
-
-    def export_json(self, path: str, max_rules=None):
-        rules = self.get_rules(max_rules)
-        with open(path, "w") as file:
-            dump_json(
-                {"rules": rules}, file, ensure_ascii=False, indent=4, sort_keys=True
-            )
-        return rules
 
     def transform_rule(
         self, yaml_loader: YAML, rule, transformations: list[Callable[[dict], None]]

@@ -59,11 +59,12 @@ def _multi_and_unequal(l1: list, l2: list):
 
 
 def move_citations(yaml: dict, rule: dict, transformer: Transformer) -> None:
-    """Move to be a property of `Authority.Standards.References` items
+    """Move to be a property of `Authorities.Standards.References` items
     `Citations`
     """
     references = yaml.get("References", [])
     citations = yaml.pop("Citations", [])
+    standards = yaml.get("Scopes", {}).get("Standards", [])
     if _multi_and_unequal(references, citations):
         raise Exception(
             f"References and Citations counts don't match for: {rule['id']}"
@@ -74,18 +75,24 @@ def move_citations(yaml: dict, rule: dict, transformer: Transformer) -> None:
         yaml["References"] = [{"Citations": citations}]
     elif len(citations) == 1 and len(references) > 0:
         references[0]["Citations"] = citations
-    elif len(citations) > 1 and len(references) <= 1:
+    elif (
+        len(citations) > 1 and len(references) <= 1 and len(citations) == len(standards)
+    ):
         yaml["References"] = [
             {**deepcopy(next(iter(references), {})), "Citations": [citation]}
             for citation in citations
         ]
+    elif (
+        len(citations) > 1 and len(references) <= 1 and len(citations) != len(standards)
+    ):
+        yaml["References"] = [{**next(iter(references), {}), "Citations": citations}]
     elif len(citations) > 1 and len(references) > 1:
         for reference, citation in zip(references, citations):
             reference["Citations"] = citation
 
 
 def move_references(yaml: dict, rule: dict, transformer: Transformer) -> None:
-    """Move to be a property of `Authority.Standards` items
+    """Move to be a property of `Authorities.Standards` items
     `References`
     """
     standards = yaml.get("Scopes", {}).get("Standards", [])
@@ -123,23 +130,23 @@ def convert_authority_to_list(yaml: dict, rule: dict, transformer: Transformer) 
     """Convert value from object to list of objects
     `Authority`
     """
-    authority = yaml.get("Authority")
+    authority = yaml.pop("Authority", None)
     if authority and not (isinstance(authority, list)):
-        yaml["Authority"] = [authority]
+        yaml["Authorities"] = [authority]
 
 
 def move_standards(yaml: dict, rule: dict, transformer: Transformer) -> None:
-    """Move to be a property of `Authority` items
+    """Move to be a property of `Authorities` items
     `Scopes.Standards`
     """
     standards = yaml.get("Scopes", {}).pop("Standards", None)
     if standards is not None:
-        yaml["Authority"] = [
+        yaml["Authorities"] = [
             {
-                **next(iter(yaml.get("Authority", [])), {}),
+                **next(iter(yaml.get("Authorities", [])), {}),
                 "Standards": standards,
             },
-            *yaml.get("Authority", [])[1:],
+            *yaml.get("Authorities", [])[1:],
         ]
 
 
@@ -190,7 +197,7 @@ def condense_rule_types(yaml: dict, rule: dict, transformer: Transformer) -> Non
 
 
 def remove_severity(yaml: dict, rule: dict, transformer: Transformer) -> None:
-    """`Severity` is removed from the root and is now an optional property under `Authority.Standards.References` for some authorities, like PMDA.
+    """`Severity` is removed from the root and is now an optional property under `Authorities.Standards.References` for some authorities, like PMDA.
     `Severity`
     """
     yaml.pop("Severity", None)
