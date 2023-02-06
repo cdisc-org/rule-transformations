@@ -66,9 +66,8 @@ def move_citations(yaml: dict, rule: dict, transformer: Transformer) -> None:
     citations = yaml.pop("Citations", [])
     standards = yaml.get("Scopes", {}).get("Standards", [])
     if _multi_and_unequal(references, citations):
-        raise Exception(
-            f"References and Citations counts don't match for: {rule['id']}"
-        )
+        print(f"References and Citations counts don't match for: {rule['id']}")
+        references[0]["Citations"] = citations
     elif not citations:
         return
     elif len(citations) == 1 and len(references) == 0:
