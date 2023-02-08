@@ -5,7 +5,8 @@
 In order to create a transformer provider for a different type of storage, implement the `Transformer` interface. Some provider implementations are already provided:
 
 - `CosmosdbTransformer` for ms cosmosdb storage
-- `FileTransformer` for simple json filesystem storage
+- `JSONTransformer` for simple json filesystem storage
+- `YAMLTransformer` for simple yaml filesystem storage
 
 ## Create transformers
 
@@ -26,6 +27,13 @@ prod_transformer = CosmosdbTransformer(
 ```python
 from transformer.transformer_json import JSONTransformer
 json_transformer = JSONTransformer(f"{getenv('WORKING_DIR')}/rules")
+```
+
+### YAML File Transformer
+
+```python
+from transformer.transformer_yaml import YAMLTransformer
+yaml_transformer = YAMLTransformer(f"{getenv('WORKING_DIR')}/rules")
 ```
 
 ## Export Rules
