@@ -1,14 +1,21 @@
 from typing import Callable
 from ruamel.yaml import YAML, parser, scanner
-from yaml import safe_load
+import yaml
 from .each_deep import each_deep
 from io import StringIO
 from abc import ABC, abstractmethod
+from difflib import SequenceMatcher
+from collections import defaultdict
+from .sorter import sort_deep
 
 
 class Transformer(ABC):
     @abstractmethod
     def get_rules(self, max_rules=None):
+        pass
+
+    @abstractmethod
+    def get_rule(self, uuid: str):
         pass
 
     @abstractmethod
@@ -27,10 +34,83 @@ class Transformer(ABC):
     def max_core_id(self):
         pass
 
+    @abstractmethod
+    def get_ids(self):
+        pass
+
+    @abstractmethod
+    def get_rules_list(self):
+        pass
+
     @staticmethod
     def replace_rules(from_transformer: "Transformer", to_transformer: "Transformer"):
         to_transformer.delete_rules()
         to_transformer.add_rules(from_transformer.get_rules())
+
+    @staticmethod
+    def _get_id_to_rule(rules) -> dict:
+        return {rule["id"]: rule for rule in rules}
+
+    @staticmethod
+    def _get_opcodes(base: str, comp: str) -> list[dict]:
+        diffs = []
+        for op, base1, base2, comp1, comp2 in SequenceMatcher(
+            None,
+            base,
+            comp,
+            False,
+        ).get_opcodes():
+            base_substring = base[base1:base2]
+            comp_substring = comp[comp1:comp2]
+            if op == "delete":
+                diffs.append({"op": "remove", "value": base_substring})
+            if op == "insert":
+                diffs.append({"op": "add", "value": comp_substring})
+            if op == "replace":
+                diffs.append(
+                    {
+                        "op": "replace",
+                        "value_base": base_substring,
+                        "value_comp": comp_substring,
+                    }
+                )
+        return diffs
+
+    @staticmethod
+    def diff_rules(base: "Transformer", comp: "Transformer"):
+        json_adds = []
+        yaml_adds = []
+        json_removes = []
+        yaml_removes = []
+        json_diffs = defaultdict(list)
+        yaml_diffs = defaultdict(list)
+        base_rules = Transformer._get_id_to_rule(sort_deep(base.get_rules()))
+        comp_rules = Transformer._get_id_to_rule(sort_deep(comp.get_rules()))
+        base_ids = {*base_rules.keys()}
+        comp_ids = {*comp_rules.keys()}
+        for uuid in sorted(base_ids - comp_ids):
+            base_rule_json = base_rules[uuid].get("json")
+            base_rule_yaml = yaml.dump(base_rule_json, sort_keys=True)
+            json_removes.append(f"id: {uuid}\n{base_rule_yaml}")
+            yaml_removes.append(f"id: {uuid}\n{base_rules[uuid].get('content')}")
+        for uuid in sorted(comp_ids - base_ids):
+            comp_rule_json = comp_rules[uuid].get("json")
+            comp_rule_yaml = yaml.dump(comp_rule_json, sort_keys=True)
+            json_adds.append(f"id: {uuid}\n{comp_rule_yaml}")
+            yaml_adds.append(f"id: {uuid}\n{comp_rules[uuid].get('content')}")
+        for uuid in sorted(comp_ids.intersection(base_ids)):
+            base_rule_json = base_rules[uuid].get("json")
+            comp_rule_json = comp_rules[uuid].get("json")
+            base_rule_yaml = yaml.dump(base_rule_json, sort_keys=True)
+            comp_rule_yaml = yaml.dump(comp_rule_json, sort_keys=True)
+            json_diffs[uuid] = Transformer._get_opcodes(base_rule_yaml, comp_rule_yaml)
+            yaml_diffs[uuid] = Transformer._get_opcodes(
+                base_rules[uuid].get("content"), comp_rules[uuid].get("content")
+            )
+        return {
+            "json": {"adds": json_adds, "removes": json_removes, "diffs": json_diffs},
+            "yaml": {"adds": yaml_adds, "removes": yaml_removes, "diffs": yaml_diffs},
+        }
 
     @staticmethod
     def _spaces_to_underscores(context, path, indexed_path):
@@ -61,7 +141,9 @@ class Transformer(ABC):
                 content,
             )
             rule["content"] = content.getvalue()
-            rule["json"] = Transformer.spaces_to_underscores(safe_load(rule["content"]))
+            rule["json"] = Transformer.spaces_to_underscores(
+                yaml.safe_load(rule["content"])
+            )
             content.close()
         except (scanner.ScannerError, parser.ParserError):
             yaml = {}
@@ -82,3 +164,10 @@ class Transformer(ABC):
 
     def next_core_id(self):
         return f"CORE-{(int(self.max_core_id()[-6:])+1):06}"
+
+    @staticmethod
+    def _filter_dict(rule: dict, criteria):
+        return {k: v for k, v in rule.items() if criteria(k, v)}
+
+    def get_rules_csv(self):
+        return self.get_rules_list()
