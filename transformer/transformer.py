@@ -1,12 +1,12 @@
 from typing import Callable
-from ruamel.yaml import YAML, parser, scanner
+from ruamel.yaml import YAML, parser, scanner, safe_load
 import yaml
 from .each_deep import each_deep
 from io import StringIO
 from abc import ABC, abstractmethod
 from difflib import SequenceMatcher
 from collections import defaultdict
-from .sorter import sort_deep
+from .sorter import sort_deep_array
 
 
 class Transformer(ABC):
@@ -52,6 +52,21 @@ class Transformer(ABC):
         return {rule["id"]: rule for rule in rules}
 
     @staticmethod
+    def merge_rules(
+        from_transformer: "Transformer",
+        to_transformer: "Transformer",
+        match: Callable[[dict, "Transformer"], dict],
+        transformations: list[Callable[[dict, dict], None]],
+    ):
+        # TODO: this should be part of init?
+        yaml_loader = YAML()
+        yaml_loader.indent(mapping=2, sequence=4, offset=2)
+        for from_rule in from_transformer.get_rules():
+            to_rule = match(from_rule, to_transformer)
+            if to_rule:
+                to_transformer.transform_rule(yaml_loader, to_rule, transformations)
+
+    @staticmethod
     def _get_opcodes(base: str, comp: str) -> list[dict]:
         diffs = []
         for op, base1, base2, comp1, comp2 in SequenceMatcher(
@@ -84,8 +99,8 @@ class Transformer(ABC):
         yaml_removes = []
         json_diffs = defaultdict(list)
         yaml_diffs = defaultdict(list)
-        base_rules = Transformer._get_id_to_rule(sort_deep(base.get_rules()))
-        comp_rules = Transformer._get_id_to_rule(sort_deep(comp.get_rules()))
+        base_rules = Transformer._get_id_to_rule(sort_deep_array(base.get_rules()))
+        comp_rules = Transformer._get_id_to_rule(sort_deep_array(comp.get_rules()))
         base_ids = {*base_rules.keys()}
         comp_ids = {*comp_rules.keys()}
         for uuid in sorted(base_ids - comp_ids):
@@ -132,23 +147,21 @@ class Transformer(ABC):
         self, yaml_loader: YAML, rule, transformations: list[Callable[[dict], None]]
     ):
         try:
-            yaml = yaml_loader.load(rule["content"]) or {}
+            rule_yaml = yaml_loader.load(rule["content"]) or {}
             for transformation in transformations:
-                transformation(yaml, rule, self)
+                transformation(rule_yaml, rule, self)
             content = StringIO()
             yaml_loader.dump(
-                yaml,
+                rule_yaml,
                 content,
             )
             rule["content"] = content.getvalue()
-            rule["json"] = Transformer.spaces_to_underscores(
-                yaml.safe_load(rule["content"])
-            )
+            rule["json"] = Transformer.spaces_to_underscores(safe_load(rule["content"]))
             content.close()
         except (scanner.ScannerError, parser.ParserError):
-            yaml = {}
+            rule_yaml = {}
             for transformation in transformations:
-                transformation(yaml, rule, self)
+                transformation(rule_yaml, rule, self)
         self.replace_rule(rule)
 
     def transform_rules(
