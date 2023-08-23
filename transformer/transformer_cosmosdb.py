@@ -96,7 +96,8 @@ class CosmosdbTransformer(Transformer):
             udf.TO_STRING(ARRAY(SELECT DISTINCT VALUE Standard['Name'] FROM Authority IN Rule['Authorities'] JOIN Standard IN Authority['Standards'])) as 'Standard Name',
             udf.TO_STRING(ARRAY(SELECT DISTINCT VALUE Standard['Version'] FROM Authority IN Rule['Authorities'] JOIN Standard IN Authority['Standards'])) as 'Standard Version',
             Rule['Executability'] ?? null as 'Executability',
-            Rule['Core']['Status'] ?? null as 'Status'
+            Rule['Core']['Status'] ?? null as 'Status',
+            udf.TO_STRING(Rule['Check']) as 'Check'
             FROM Rules['json'] as Rule
             ORDER BY Rule['Core']['Id'] ASC
         """
