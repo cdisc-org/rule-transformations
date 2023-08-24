@@ -143,6 +143,19 @@ class Transformer(ABC):
     def core_id(rule):
         return ((rule.get("json", {}) or {}).get("Core", {}) or {}).get("Id", "") or ""
 
+    @staticmethod
+    def yaml_to_string(rule_yaml):
+        yaml_loader = YAML()
+        yaml_loader.indent(mapping=2, sequence=4, offset=2)
+        content = StringIO()
+        yaml_loader.dump(
+            rule_yaml,
+            content,
+        )
+        value = content.getvalue()
+        content.close()
+        return value
+
     def transform_rule(
         self, yaml_loader: YAML, rule, transformations: list[Callable[[dict], None]]
     ):
@@ -150,14 +163,8 @@ class Transformer(ABC):
             rule_yaml = yaml_loader.load(rule["content"]) or {}
             for transformation in transformations:
                 transformation(rule_yaml, rule, self)
-            content = StringIO()
-            yaml_loader.dump(
-                rule_yaml,
-                content,
-            )
-            rule["content"] = content.getvalue()
+            rule["content"] = Transformer.yaml_to_string(rule_yaml)
             rule["json"] = Transformer.spaces_to_underscores(safe_load(rule["content"]))
-            content.close()
         except (scanner.ScannerError, parser.ParserError):
             rule_yaml = {}
             for transformation in transformations:

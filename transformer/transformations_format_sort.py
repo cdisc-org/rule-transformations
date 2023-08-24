@@ -12,8 +12,15 @@ def sort(yaml: dict, rule: dict, transformer: Transformer) -> None:
     sort_deep_obj(yaml)
 
 
-def all_transformations():
-    return [
-        format,
-        sort,
+def create_history(yaml: dict, rule: dict, transformer: Transformer) -> None:
+    rule["history"] = [
+        {
+            "changed": rule["changed"],
+            "content": Transformer.yaml_to_string(yaml),
+            "creator": rule["creator"],
+        }
     ]
+
+
+def all_transformations():
+    return [format, sort, create_history]
