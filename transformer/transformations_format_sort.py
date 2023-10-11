@@ -13,12 +13,15 @@ def sort(yaml: dict, rule: dict, transformer: Transformer) -> None:
 
 
 def create_history(yaml: dict, rule: dict, transformer: Transformer) -> None:
+    del rule["changed"]
+    history = rule.copy()
+    del history["id"]
+    history = transformer.history_container.create_item(
+        history,
+        enable_automatic_id_generation=True,
+    )
     rule["history"] = [
-        {
-            "changed": rule["changed"],
-            "content": Transformer.yaml_to_string(yaml),
-            "creator": rule["creator"],
-        }
+        {"created": rule["created"], "creator": rule["creator"], "id": history["id"]}
     ]
 
 

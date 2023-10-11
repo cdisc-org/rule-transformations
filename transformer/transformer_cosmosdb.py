@@ -5,11 +5,13 @@ from .transformer import Transformer
 
 
 class CosmosdbTransformer(Transformer):
-    def __init__(self, url: str, key: str, database: str, container: str):
-        self.db_container: ContainerProxy = (
-            CosmosClient(url, key)
-            .get_database_client(database)
-            .get_container_client(container)
+    def __init__(
+        self, url: str, key: str, database: str, container: str, history_container: str
+    ):
+        database = CosmosClient(url, key).get_database_client(database)
+        self.db_container: ContainerProxy = database.get_container_client(container)
+        self.history_container: ContainerProxy = database.get_container_client(
+            history_container
         )
 
     def get_rules(self, max_rules=None):
@@ -40,6 +42,8 @@ class CosmosdbTransformer(Transformer):
     def delete_rules(self):
         for rule in self.db_container.read_all_items():
             self.db_container.delete_item(rule, rule["id"])
+        for rule in self.history_container.read_all_items():
+            self.history_container.delete_item(rule, rule["id"])
 
     def add_rules(self, rules):
         for rule in rules:
