@@ -149,9 +149,9 @@ def process_excel(xlsx_path: Path, out_dir: Path) -> list[str]:
             if ct_values:
                 env_lines.append(f"CT={','.join(ct_values)}")
 
-    for xml_file in sorted(xlsx_path.parent.glob("*.xml")):
-        key = xml_file.stem.upper().replace("-", "_").replace(".", "_") + "_XML_PATH"
-        env_lines.append(f"{key}={xml_file.name}")
+    xml_files = sorted(xlsx_path.parent.glob("*.xml"))
+    if xml_files:
+        env_lines.append(f"DEFINE_XML={xml_files[0].name}")
 
     (out_dir / ".env").write_text("\n".join(env_lines) + "\n", encoding="utf-8")
 
@@ -161,7 +161,7 @@ def process_excel(xlsx_path: Path, out_dir: Path) -> list[str]:
 # ── directory traversal ───────────────────────────────────────────────────────
 
 def process_data_dir(data_dir: Path, out_data_dir: Path) -> list[str]:
-    """Convert Excel files and copy define.xml into out_data_dir."""
+    """Convert Excel files and copy define.xml."""
     out_data_dir.mkdir(parents=True, exist_ok=True)
     errors = []
     for f in sorted(data_dir.iterdir()):
@@ -171,6 +171,23 @@ def process_data_dir(data_dir: Path, out_data_dir: Path) -> list[str]:
             errors.extend(process_excel(f, out_data_dir))
         elif f.name.lower() == "define.xml":
             shutil.copy2(f, out_data_dir / f.name)
+    return errors
+
+
+
+def process_results_dir(results_dir: Path, out_results_dir: Path, label: str) -> list[str]:
+    errors = []
+    for f in sorted(results_dir.iterdir()):
+        if not f.is_file():
+            continue
+        out_results_dir.mkdir(parents=True, exist_ok=True)
+        if f.suffix.lower() == ".json":
+            shutil.copy2(f, out_results_dir / f.name)
+        elif is_excel(f):
+            shutil.copy2(f, out_results_dir / f.name)
+            errors.append(f"{label}/results/{f.name}: result file is Excel, expected JSON")
+        else:
+            shutil.copy2(f, out_results_dir / f.name)
     return errors
 
 
@@ -206,6 +223,15 @@ def process_standard(standard_dir: Path, output_dir: Path):
                 else:
                     print(f"  {rule_dir.name}/{polarity_dir.name}/{num_dir.name}/data")
 
+                results_dir = num_dir / "results"
+                if results_dir.exists():
+                    out_results_dir = output_dir / rel / "results"
+                    label = f"{rule_dir.name}/{polarity_dir.name}/{num_dir.name}"
+                    errs = process_results_dir(results_dir, out_results_dir, label)
+                    if errs:
+                        all_errors.extend(errs)
+                        print(f"  {label}/results [errors: {len(errs)}]")
+
 
     log_path = output_dir / "conversion_errors.log"
     if all_errors:
@@ -228,14 +254,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Convert CDISC CORE unit test Excel files to CSV.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-
-        """,
+        epilog=None,
     )
-    parser.add_argument(
-        "input_dir"
-    )
-    parser.add_argument("--file", metavar="XLSX", help="Process a single Excel file instead")
+    parser.add_argument("input_dir")
+    parser.add_argument("--file", metavar="XLSX")
     args = parser.parse_args()
 
     input_dir = Path(args.input_dir).resolve()
