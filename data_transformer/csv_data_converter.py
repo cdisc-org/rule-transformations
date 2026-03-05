@@ -164,14 +164,15 @@ def process_data_dir(data_dir: Path, out_data_dir: Path) -> list[str]:
     """Convert Excel files and copy define.xml."""
     out_data_dir.mkdir(parents=True, exist_ok=True)
     errors = []
-    for f in sorted(data_dir.iterdir()):
-        if not f.is_file():
-            continue
-        if is_excel(f):
-            errors.extend(process_excel(f, out_data_dir))
-        elif f.name.lower() == "define.xml":
-            shutil.copy2(f, out_data_dir / f.name)
-    return errors
+    files = sorted(f for f in data_dir.iterdir() if f.is_file())
+        if not any(is_excel(f) for f in files):
+            errors.append(f"{data_dir}: no Excel file found — non-Excel files copied as-is")
+        for f in files:
+            if is_excel(f):
+                errors.extend(process_excel(f, out_data_dir))
+            else:
+                shutil.copy2(f, out_data_dir / f.name)
+        return errors
 
 
 
