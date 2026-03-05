@@ -127,8 +127,10 @@ def process_excel(xlsx_path: Path, out_dir: Path) -> list[str]:
             if any(v is not None for v in row[:max_col])
         ]
         display_name = sheet_name
-        if display_name.lower().endswith(".xpt"):
-            display_name = display_name[:-4]
+        for _ext in (".xpt", ".csv"):
+            if display_name.lower().endswith(_ext):
+                display_name = display_name[:-len(_ext)]
+                break
         safe_name = display_name.replace("/", "_").replace("\\", "_")
         write_csv(out_dir / f"{safe_name}.csv", [header] + data_rows)
         write_csv(out_dir / f"{safe_name}.csv", [header] + data_rows)
