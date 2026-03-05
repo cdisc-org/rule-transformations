@@ -249,28 +249,36 @@ Process a full standard directory
 Process a single Excel file
   python convert_tests.py --file path/to/test.xlsx
 '''
-  
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Convert CDISC CORE unit test Excel files to CSV.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=None,
     )
-    parser.add_argument("input_dir")
-    parser.add_argument("--file", metavar="XLSX")
+    parser.add_argument(
+        "input_dir",
+        nargs="?",
+    )
+    parser.add_argument("--file", metavar="XLSX", help="Process a single Excel file instead")
     args = parser.parse_args()
-
-    input_dir = Path(args.input_dir).resolve()
-    output_dir = input_dir.parent / f"{input_dir.name}_csv"
 
     if args.file:
         xlsx = Path(args.file)
         if not xlsx.exists():
             print(f"Error: {xlsx} not found", file=sys.stderr)
             sys.exit(1)
+        output_dir = xlsx.parent
         process_excel(xlsx, output_dir)
         print(f"Done. Output in: {output_dir}")
         return
+
+    if not args.input_dir:
+        parser.error("input_dir is required when --file is not specified")
+
+    input_dir = Path(args.input_dir).resolve()
+    output_dir = input_dir.parent / f"{input_dir.name}_csv"
 
     if not input_dir.exists():
         print(f"Error: {input_dir} not found", file=sys.stderr)
